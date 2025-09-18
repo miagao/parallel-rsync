@@ -1,15 +1,14 @@
 FROM ubuntu:22.04
 
-# Install required packages
+# Install required packages (minimal for CI speed)
 RUN apt-get update && apt-get install -y \
     rsync \
     bc \
     coreutils \
     findutils \
-    openssh-client \
     time \
-    tree \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
 
 # Create necessary directories
 RUN mkdir -p /data/source /data/destination /var/log/rsync /scripts
