@@ -1,8 +1,8 @@
 # Parallel File-Level Rsync
 
-[![Tests](https://img.shields.io/badge/tests-17/17_passing-brightgreen)](tests/)
+[![Tests](https://github.com/miagao/parallel-rsync/workflows/Tests/badge.svg)](https://github.com/miagao/parallel-rsync/actions/workflows/test.yml)
+[![Security](https://github.com/miagao/parallel-rsync/workflows/Security/badge.svg)](https://github.com/miagao/parallel-rsync/actions/workflows/security.yml)
 [![Version](https://img.shields.io/badge/version-2.1-blue)](bin/parallel_file_rsync.sh)
-[![Security](https://img.shields.io/badge/shellcheck-passing-green)](bin/parallel_file_rsync.sh)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 A high-performance file synchronization script that optimizes rsync operations by processing large files individually in parallel while batching small files for efficiency.
@@ -58,6 +58,26 @@ parallel-rsync/
 
 ## 🧪 Testing
 
+### GitHub Actions CI/CD
+The project includes comprehensive automated testing:
+
+- **🔍 Tests Workflow**: Runs on every push and pull request
+  - Shellcheck linting for all scripts
+  - Dependency validation
+  - Docker integration tests (basic & comprehensive)
+  - Edge case testing with special characters
+  - Performance benchmarking
+  - Documentation validation
+
+- **🛡️ Security Workflow**: Weekly security scans
+  - ShellCheck security analysis (`-S error`)
+  - Secret detection scanning
+  - File permissions validation
+  - Docker vulnerability scanning (Trivy)
+  - Code quality analysis
+  - GitHub Actions security validation
+
+### Local Testing
 Run the comprehensive test suite using Docker:
 
 ```bash
@@ -66,6 +86,8 @@ docker compose up -d
 docker compose exec rsync-source ./test-data-generator.sh -v
 docker compose exec rsync-tester ./run-tests.sh
 ```
+
+**Local Test Results**: 17/17 tests passing ✅
 
 ## 💡 Quick Examples
 
@@ -108,16 +130,26 @@ docker compose exec rsync-tester ./run-tests.sh
 
 ## 🤝 Contributing
 
-1. **Test your changes**: Use the Docker test environment
-2. **Update documentation**: Keep docs in sync with features
-3. **Follow the structure**: Place files in appropriate directories
+1. **Test your changes**: Use the Docker test environment and ensure CI/CD passes
+2. **Security compliance**: All code must pass `shellcheck -S error`
+3. **Update documentation**: Keep docs in sync with features
+4. **Follow the structure**: Place files in appropriate directories
 
 ```bash
-# Test your changes
+# Test your changes locally
 cd tests/docker
 docker compose up -d
 docker compose exec rsync-tester ./run-tests.sh
+
+# Verify security compliance
+shellcheck -S error bin/parallel_file_rsync.sh tests/scripts/*.sh
 ```
+
+**CI/CD Requirements**:
+- ✅ All tests must pass (17/17)
+- ✅ Security workflow must pass
+- ✅ No shellcheck warnings allowed
+- ✅ Documentation must be updated for new features
 
 ## 📄 License
 
