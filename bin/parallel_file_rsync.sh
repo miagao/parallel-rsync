@@ -180,18 +180,39 @@ get_file_list() {
     local min_bytes
     min_bytes=$(size_to_bytes "$MIN_FILE_SIZE")
 
-    log "INFO" "Scanning directory: $SOURCE_DIR"
-    log "INFO" "Max depth: $MAX_DEPTH, Min size: $MIN_FILE_SIZE ($min_bytes bytes)"
+    log "INFO" "Scanning directory: $SOURCE_DIR" >&2
+    log "INFO" "Max depth: $MAX_DEPTH, Min size: $MIN_FILE_SIZE ($min_bytes bytes)" >&2
 
     # Build find command directly without complex eval
     local temp_file="/tmp/find_output_$$"
 
     # Create find command with include/exclude patterns
     if [ -n "$INCLUDE_PATTERNS" ] || [ -n "$EXCLUDE_PATTERNS" ]; then
-        # Use build_find_command for complex patterns
-        local find_cmd
-        find_cmd=$(build_find_command)
-        eval "$find_cmd" -exec stat -c '%s:%n' {} \; 2>/dev/null > "$temp_file"
+        # Build find command with patterns directly (avoid eval complexity)
+        local find_args=("$SOURCE_DIR" "-maxdepth" "$MAX_DEPTH" "-type" "f")
+
+        # Add include patterns (if any)
+        if [ -n "$INCLUDE_PATTERNS" ]; then
+            local include_added=false
+            find_args+=("(")
+            for pattern in $INCLUDE_PATTERNS; do
+                if [ "$include_added" = true ]; then
+                    find_args+=("-o")
+                fi
+                find_args+=("-name" "$pattern")
+                include_added=true
+            done
+            find_args+=(")")
+        fi
+
+        # Add exclude patterns (if any)
+        if [ -n "$EXCLUDE_PATTERNS" ]; then
+            for pattern in $EXCLUDE_PATTERNS; do
+                find_args+=("!" "-name" "$pattern")
+            done
+        fi
+
+        find "${find_args[@]}" -exec stat -c '%s:%n' {} \; 2>/dev/null > "$temp_file"
     else
         # Simple case - direct find command
         find "$SOURCE_DIR" -maxdepth "$MAX_DEPTH" -type f -exec stat -c '%s:%n' {} \; 2>/dev/null > "$temp_file"
@@ -558,11 +579,11 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         --exclude)
-            EXCLUDE_PATTERNS="$EXCLUDE_PATTERNS $2"
+            EXCLUDE_PATTERNS="${EXCLUDE_PATTERNS:+$EXCLUDE_PATTERNS }$2"
             shift 2
             ;;
         --include)
-            INCLUDE_PATTERNS="$INCLUDE_PATTERNS $2"
+            INCLUDE_PATTERNS="${INCLUDE_PATTERNS:+$INCLUDE_PATTERNS }$2"
             shift 2
             ;;
         --resume)

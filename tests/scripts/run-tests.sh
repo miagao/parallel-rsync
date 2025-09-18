@@ -77,12 +77,42 @@ verify_sync() {
     # Verify based on expected behavior
     case "$expected_behavior" in
         "complete_sync")
-            if [ "$source_files" -eq "$dest_files" ] && [ "$source_size" -eq "$dest_size" ]; then
+            # Check file count first
+            if [ "$source_files" -ne "$dest_files" ]; then
+                error "$test_name - File count mismatch (files: $source_files->$dest_files)"
+                TESTS_FAILED=$((TESTS_FAILED + 1))
+                return 1
+            fi
+
+            # Check individual file sizes to avoid directory metadata differences
+            local size_mismatch=false
+            while IFS= read -r source_file; do
+                local rel_path
+                rel_path=$(realpath --relative-to="$source_path" "$source_file")
+                local dest_file="$dest_path/$rel_path"
+
+                if [ -f "$dest_file" ]; then
+                    local source_file_size
+                    source_file_size=$(stat -c '%s' "$source_file" 2>/dev/null || echo 0)
+                    local dest_file_size
+                    dest_file_size=$(stat -c '%s' "$dest_file" 2>/dev/null || echo 0)
+
+                    if [ "$source_file_size" -ne "$dest_file_size" ]; then
+                        size_mismatch=true
+                        break
+                    fi
+                else
+                    size_mismatch=true
+                    break
+                fi
+            done < <(find "$source_path" -type f)
+
+            if [ "$size_mismatch" = false ]; then
                 success "$test_name - Complete sync verified"
                 TESTS_PASSED=$((TESTS_PASSED + 1))
                 return 0
             else
-                error "$test_name - Sync incomplete (files: $source_files->$dest_files, sizes differ)"
+                error "$test_name - File size mismatch detected"
                 TESTS_FAILED=$((TESTS_FAILED + 1))
                 return 1
             fi
@@ -138,8 +168,34 @@ run_test() {
 
     log "Test completed in ${duration}s with exit code: $exit_code"
 
-    # Verify results
-    verify_sync "$test_name" "$SOURCE_DIR" "$DEST_DIR" "$expected_behavior"
+    # Extract actual source and destination from command for proper verification
+    local actual_source
+    local actual_dest
+
+    # Parse source from -s parameter (handle quoted paths)
+    actual_source=$(echo "$rsync_command" | sed -n "s/.*-s '[^']*\([^']*\)'.*/\1/p")
+    if [ -z "$actual_source" ]; then
+        actual_source=$(echo "$rsync_command" | sed -n "s/.*-s '\([^']*\)'.*/\1/p")
+    fi
+    if [ -z "$actual_source" ]; then
+        actual_source=$(echo "$rsync_command" | sed -n 's/.*-s \([^ ]*\).*/\1/p')
+    fi
+
+    # Parse destination from -d parameter (handle quoted paths)
+    actual_dest=$(echo "$rsync_command" | sed -n "s/.*-d '[^']*\([^']*\)'.*/\1/p")
+    if [ -z "$actual_dest" ]; then
+        actual_dest=$(echo "$rsync_command" | sed -n "s/.*-d '\([^']*\)'.*/\1/p")
+    fi
+    if [ -z "$actual_dest" ]; then
+        actual_dest=$(echo "$rsync_command" | sed -n 's/.*-d \([^ ]*\).*/\1/p')
+    fi
+
+    # Fall back to defaults if parsing fails
+    actual_source="${actual_source:-$SOURCE_DIR}"
+    actual_dest="${actual_dest:-$DEST_DIR}"
+
+    # Verify results with actual paths
+    verify_sync "$test_name" "$actual_source" "$actual_dest" "$expected_behavior"
 
     return $exit_code
 }
