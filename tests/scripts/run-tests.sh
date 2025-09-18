@@ -64,12 +64,14 @@ verify_sync() {
     log "Verifying sync results for: $test_name"
 
     # Count files
-    local source_files=$(find "$source_path" -type f 2>/dev/null | wc -l)
-    local dest_files=$(find "$dest_path" -type f 2>/dev/null | wc -l)
+    local source_files
+    source_files=$(find "$source_path" -type f 2>/dev/null | wc -l)
+    local dest_files
+    dest_files=$(find "$dest_path" -type f 2>/dev/null | wc -l)
 
-    # Calculate sizes
-    local source_size=$(du -sb "$source_path" 2>/dev/null | cut -f1 || echo 0)
-    local dest_size=$(du -sb "$dest_path" 2>/dev/null | cut -f1 || echo 0)
+    # Calculate sizes (removed unused variables)
+    # local source_size=$(du -sb "$source_path" 2>/dev/null | cut -f1 || echo 0)
+    # local dest_size=$(du -sb "$dest_path" 2>/dev/null | cut -f1 || echo 0)
 
     echo "  Source: $source_files files, $(du -sh "$source_path" 2>/dev/null | cut -f1 || echo '0B')"
     echo "  Dest:   $dest_files files, $(du -sh "$dest_path" 2>/dev/null | cut -f1 || echo '0B')"
@@ -156,14 +158,16 @@ run_test() {
     clean_destination
 
     # Record start time
-    local start_time=$(date +%s)
+    local start_time
+    start_time=$(date +%s)
 
     # Run the command
     eval "$rsync_command"
     local exit_code=$?
 
     # Record end time
-    local end_time=$(date +%s)
+    local end_time
+    end_time=$(date +%s)
     local duration=$((end_time - start_time))
 
     log "Test completed in ${duration}s with exit code: $exit_code"
@@ -276,7 +280,8 @@ test_special_characters() {
 }
 
 test_with_logging() {
-    local test_log_dir="$LOG_DIR/test_run_$(date +%s)"
+    local test_log_dir
+    test_log_dir="$LOG_DIR/test_run_$(date +%s)"
     run_test "With Individual Job Logging" \
         "$SCRIPT_PATH -s '$SOURCE_DIR' -d '$DEST_DIR' --log-dir '$test_log_dir' -v"
 
@@ -334,11 +339,14 @@ run_performance_benchmark() {
         log "Benchmarking with $jobs parallel jobs..."
         clean_destination
 
-        local start_time=$(date +%s.%N)
+        local start_time
+        start_time=$(date +%s.%N)
         "$SCRIPT_PATH" -s "$SOURCE_DIR" -d "$DEST_DIR" -j "$jobs" >/dev/null 2>&1
-        local end_time=$(date +%s.%N)
+        local end_time
+        end_time=$(date +%s.%N)
 
-        local duration=$(echo "$end_time - $start_time" | bc)
+        local duration
+        duration=$(echo "$end_time - $start_time" | bc)
         log "Jobs: $jobs, Time: ${duration}s"
     done
 }

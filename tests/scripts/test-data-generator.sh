@@ -37,15 +37,23 @@ create_file() {
         "text")
             # Create text file with repeated content
             local text="This is test data for parallel rsync testing. Line number: "
+            local temp_file
+            temp_file="/tmp/test_data_$$_$(basename "$filepath")"
             {
                 local i=1
-                while [ $(stat -c%s "$filepath" 2>/dev/null || echo 0) -lt "$size" ]; do
+                local current_size=0
+                while [ "$current_size" -lt "$size" ]; do
                     echo "${text}${i}"
                     i=$((i + 1))
+                    # Check size periodically to avoid infinite loops
+                    if [ $((i % 100)) -eq 0 ]; then
+                        current_size=$(stat -c%s "$temp_file" 2>/dev/null || echo 0)
+                    fi
                 done
-            } > "$filepath"
-            # Truncate to exact size
-            truncate -s "$size" "$filepath"
+            } > "$temp_file"
+            # Truncate to exact size and move to final location
+            truncate -s "$size" "$temp_file"
+            mv "$temp_file" "$filepath"
             ;;
         "zeros")
             # Create file filled with zeros
@@ -265,9 +273,12 @@ show_summary() {
     echo
     echo "=== Data Summary ==="
 
-    local total_files=$(find "$DATA_DIR" -type f | wc -l)
-    local total_size=$(du -sb "$DATA_DIR" 2>/dev/null | cut -f1)
-    local total_size_human=$(du -sh "$DATA_DIR" 2>/dev/null | cut -f1)
+    local total_files
+    total_files=$(find "$DATA_DIR" -type f | wc -l)
+    local total_size
+    total_size=$(du -sb "$DATA_DIR" 2>/dev/null | cut -f1)
+    local total_size_human
+    total_size_human=$(du -sh "$DATA_DIR" 2>/dev/null | cut -f1)
 
     echo "Total files: $total_files"
     echo "Total size: $total_size_human ($total_size bytes)"
