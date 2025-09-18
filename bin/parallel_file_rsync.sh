@@ -20,7 +20,7 @@ DRY_RUN=false
 SORT_BY_SIZE=false
 EXCLUDE_PATTERNS=""
 INCLUDE_PATTERNS=""
-RESUME_MODE=false
+# RESUME_MODE removed - functionality integrated into rsync commands
 LOG_DIR=""
 
 # Colors for output
@@ -93,7 +93,8 @@ log() {
     local level=$1
     shift
     local message="$*"
-    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    local timestamp
+    timestamp=$(date '+%Y-%m-%d %H:%M:%S')
 
     case $level in
         "INFO")
@@ -117,8 +118,10 @@ log() {
 # Function to convert size to bytes
 size_to_bytes() {
     local size=$1
-    local number=$(echo "$size" | sed 's/[^0-9.]//g')
-    local unit=$(echo "$size" | sed 's/[0-9.]//g' | tr '[:lower:]' '[:upper:]')
+    local number
+    number=${size//[^0-9.]/}
+    local unit
+    unit=$(echo "${size//[0-9.]/}" | tr '[:lower:]' '[:upper:]')
 
     case $unit in
         "K"|"KB") echo "$number * 1024" | bc -l | cut -d. -f1 ;;
@@ -174,7 +177,8 @@ build_find_command() {
 
 # Function to get file list with sizes
 get_file_list() {
-    local min_bytes=$(size_to_bytes "$MIN_FILE_SIZE")
+    local min_bytes
+    min_bytes=$(size_to_bytes "$MIN_FILE_SIZE")
 
     log "INFO" "Scanning directory: $SOURCE_DIR"
     log "INFO" "Max depth: $MAX_DEPTH, Min size: $MIN_FILE_SIZE ($min_bytes bytes)"
@@ -185,7 +189,8 @@ get_file_list() {
     # Create find command with include/exclude patterns
     if [ -n "$INCLUDE_PATTERNS" ] || [ -n "$EXCLUDE_PATTERNS" ]; then
         # Use build_find_command for complex patterns
-        local find_cmd=$(build_find_command)
+        local find_cmd
+        find_cmd=$(build_find_command)
         eval "$find_cmd" -exec stat -c '%s:%n' {} \; 2>/dev/null > "$temp_file"
     else
         # Simple case - direct find command
@@ -218,9 +223,11 @@ sync_large_file() {
         mkdir -p "$LOG_DIR"
     fi
 
-    local rel_path=$(realpath --relative-to="$SOURCE_DIR" "$filepath")
+    local rel_path
+    rel_path=$(realpath --relative-to="$SOURCE_DIR" "$filepath")
     local dest_path="$DESTINATION/$rel_path"
-    local dest_dir=$(dirname "$dest_path")
+    local dest_dir
+    dest_dir=$(dirname "$dest_path")
 
     # Create destination directory
     mkdir -p "$dest_dir"
@@ -239,7 +246,8 @@ sync_large_file() {
     fi
 
     # Execute rsync
-    local start_time=$(date +%s)
+    local start_time
+    start_time=$(date +%s)
     local result=0
 
     if [ -n "$log_file" ]; then
@@ -256,7 +264,8 @@ sync_large_file() {
         fi
     fi
 
-    local end_time=$(date +%s)
+    local end_time
+    end_time=$(date +%s)
     local duration=$((end_time - start_time))
 
     if [ $result -eq 0 ]; then
@@ -283,7 +292,8 @@ sync_small_files() {
         return 0
     fi
 
-    local file_count=$(wc -l < "$small_files_list")
+    local file_count
+    file_count=$(wc -l < "$small_files_list")
     log "PROGRESS" "Job $job_id: Starting batch of $file_count small files"
 
     # Build files-from list (relative paths)
@@ -304,9 +314,11 @@ sync_small_files() {
     fi
 
     # Execute batch rsync
-    local start_time=$(date +%s)
+    local start_time
+    start_time=$(date +%s)
     if eval "$cmd" >/dev/null 2>&1; then
-        local end_time=$(date +%s)
+        local end_time
+        end_time=$(date +%s)
         local duration=$((end_time - start_time))
         # Use temp files for cross-process communication
         for _ in $(seq 1 "$file_count"); do
@@ -387,8 +399,10 @@ process_files() {
     TOTAL_FILES=$(wc -l < "$all_files")
     TOTAL_SIZE=$(awk -F: '{sum += $2} END {print sum+0}' "$all_files")
 
-    local large_count=$(wc -l < "$large_files")
-    local small_count=$(wc -l < "$small_files")
+    local large_count
+    large_count=$(wc -l < "$large_files")
+    local small_count
+    small_count=$(wc -l < "$small_files")
 
     log "INFO" "Found $TOTAL_FILES files ($(bytes_to_human "$TOTAL_SIZE") total)"
     log "INFO" "  - $large_count large files (>=$MIN_FILE_SIZE)"
@@ -399,7 +413,8 @@ process_files() {
         log "INFO" "Sorting large files by size (largest first)..."
         local large_with_sizes="$temp_dir/large_with_sizes.txt"
         while read -r filepath; do
-            local size=$(stat -c '%s' "$filepath" 2>/dev/null || echo 0)
+            local size
+            size=$(stat -c '%s' "$filepath" 2>/dev/null || echo 0)
             echo "$size:$filepath"
         done < "$large_files" | sort -nr > "$large_with_sizes"
         cut -d: -f2 "$large_with_sizes" > "$large_files"
@@ -419,7 +434,8 @@ process_files() {
             done
 
             job_count=$((job_count + 1))
-            local filesize=$(stat -c '%s' "$filepath" 2>/dev/null || echo 0)
+            local filesize
+            filesize=$(stat -c '%s' "$filepath" 2>/dev/null || echo 0)
 
             # Start background job for large file
             sync_large_file "$filepath" "$job_count" "$filesize" &
