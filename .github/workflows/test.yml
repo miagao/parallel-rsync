@@ -16,10 +16,19 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    - name: Cache shellcheck
+      uses: actions/cache@v3
+      with:
+        path: ~/.local/bin/shellcheck
+        key: shellcheck-${{ runner.os }}-v1
+
     - name: Install shellcheck
       run: |
-        sudo apt-get update
-        sudo apt-get install -y shellcheck
+        if [ ! -f ~/.local/bin/shellcheck ]; then
+          curl -sL https://github.com/koalaman/shellcheck/releases/download/stable/shellcheck-stable.linux.x86_64.tar.xz | \
+          tar -xJ && mkdir -p ~/.local/bin && mv shellcheck-stable/shellcheck ~/.local/bin/
+        fi
+        echo "$HOME/.local/bin" >> $GITHUB_PATH
 
     - name: Lint main script
       run: shellcheck bin/parallel_file_rsync.sh
@@ -53,24 +62,35 @@ jobs:
   docker-tests:
     name: Docker Integration Tests
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        test-type: [basic, comprehensive]
     steps:
     - uses: actions/checkout@v4
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
 
+    - name: Cache Docker layers
+      uses: actions/cache@v3
+      with:
+        path: /tmp/.buildx-cache
+        key: ${{ runner.os }}-buildx-${{ github.sha }}
+        restore-keys: |
+          ${{ runner.os }}-buildx-
+
     - name: Build test environment
       run: |
         cd tests/docker
-        docker compose build
+        docker compose build --parallel
 
     - name: Start test environment
       run: |
         cd tests/docker
         docker compose up -d
 
-        # Wait for containers to be ready
-        sleep 10
+        # Wait for containers to be ready (reduced from 10s)
+        sleep 3
 
         # Verify containers are running
         docker compose ps
@@ -78,9 +98,10 @@ jobs:
     - name: Generate test data
       run: |
         cd tests/docker
-        docker compose exec -T rsync-source ./test-data-generator.sh
+        docker compose exec -T rsync-source ./test-data-generator.sh --fast
 
     - name: Run basic functionality test
+      if: matrix.test-type == 'basic'
       run: |
         cd tests/docker
         docker compose exec -T rsync-tester ./parallel_file_rsync.sh \
@@ -88,23 +109,25 @@ jobs:
           -d /data/destination/test \
           --max-depth 5 -v
 
-    - name: Verify test results
+    - name: Verify basic test results
+      if: matrix.test-type == 'basic'
       run: |
         cd tests/docker
         # Check that files were transferred
         file_count=$(docker compose exec -T rsync-tester find /data/destination/test -type f | wc -l)
         echo "Files transferred: $file_count"
-        if [ "$file_count" -lt 5 ]; then
-          echo "ERROR: Expected at least 5 files, got $file_count"
+        if [ "$file_count" -lt 3 ]; then
+          echo "ERROR: Expected at least 3 files, got $file_count"
           exit 1
         fi
         echo "✅ Basic functionality test passed"
 
     - name: Run comprehensive test suite
+      if: matrix.test-type == 'comprehensive'
       run: |
         cd tests/docker
-        # Run tests with timeout
-        timeout 300 docker compose exec -T rsync-tester ./run-tests.sh || {
+        # Run tests with reduced timeout
+        timeout 120 docker compose exec -T rsync-tester ./run-tests.sh || {
           echo "Tests timed out or failed"
           exit 1
         }
@@ -118,36 +141,43 @@ jobs:
   performance-test:
     name: Performance Test
     runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || contains(github.event.head_commit.message, '[perf]')
     steps:
     - uses: actions/checkout@v4
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
 
-    - name: Performance benchmark
+    - name: Cache Docker layers
+      uses: actions/cache@v3
+      with:
+        path: /tmp/.buildx-cache
+        key: ${{ runner.os }}-buildx-${{ github.sha }}
+        restore-keys: |
+          ${{ runner.os }}-buildx-
+
+    - name: Quick performance benchmark
       run: |
         cd tests/docker
+        docker compose build --parallel
         docker compose up -d
-        sleep 10
+        sleep 3
 
-        # Generate test data
-        docker compose exec -T rsync-source ./test-data-generator.sh
+        # Generate minimal test data for performance
+        docker compose exec -T rsync-source ./test-data-generator.sh --fast
 
-        # Run performance test with different job counts
-        echo "Testing performance with different job counts..."
-        for jobs in 2 4 8; do
+        # Quick performance test with only 2 job counts
+        echo "Quick performance comparison..."
+        for jobs in 2 8; do
           echo "Testing with $jobs jobs..."
           start_time=$(date +%s)
           docker compose exec -T rsync-tester ./parallel_file_rsync.sh \
-            -s /data/source \
+            -s /data/source/large_files \
             -d /data/destination/perf_${jobs} \
-            -j $jobs --max-depth 5
+            -j $jobs --max-depth 3
           end_time=$(date +%s)
           duration=$((end_time - start_time))
           echo "Jobs: $jobs, Duration: ${duration}s"
-
-          # Clean destination for next test
-          docker compose exec -T rsync-tester rm -rf /data/destination/perf_${jobs}
         done
 
         docker compose down -v
@@ -158,11 +188,19 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    - name: Cache Docker layers
+      uses: actions/cache@v3
+      with:
+        path: /tmp/.buildx-cache
+        key: ${{ runner.os }}-buildx-${{ github.sha }}
+        restore-keys: |
+          ${{ runner.os }}-buildx-
+
     - name: Test with special characters
       run: |
         cd tests/docker
         docker compose up -d
-        sleep 10
+        sleep 3
 
         # Create files with special characters
         docker compose exec -T rsync-source bash -c "

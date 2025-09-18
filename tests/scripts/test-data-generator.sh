@@ -5,6 +5,7 @@
 
 DATA_DIR="/data/source"
 VERBOSE=false
+FAST_MODE=false
 
 # Colors for output
 GREEN='\033[0;32m'
@@ -287,6 +288,38 @@ show_summary() {
     fi
 }
 
+# Fast mode main execution for CI
+main_fast() {
+    echo "=== Parallel Rsync Test Data Generator (Fast Mode) ==="
+    echo
+
+    create_test_structure
+
+    # Generate only essential files for testing
+    log "Generating minimal test files..."
+
+    # Only 3 small files instead of 75
+    local small_dir="$DATA_DIR/small_files"
+    create_file "$small_dir/tiny.txt" $((50 * 1024)) "text"
+    create_file "$small_dir/small.dat" $((100 * 1024)) "random"
+    create_file "$small_dir/medium.bin" $((500 * 1024)) "random"
+    success "Small files generated (3 files)"
+
+    # Only 3 large files instead of 11, much smaller sizes
+    local large_dir="$DATA_DIR/large_files"
+    create_file "$large_dir/large_1.bin" $((2 * 1024 * 1024)) "random"    # 2MB instead of 20MB
+    create_file "$large_dir/large_2.dat" $((3 * 1024 * 1024)) "zeros"     # 3MB instead of 50MB
+    create_file "$large_dir/large_3.txt" $((1 * 1024 * 1024)) "text"      # 1MB instead of 100MB+
+    success "Large files generated (3 files)"
+
+    # Minimal special characters test
+    local special_dir="$DATA_DIR/special_chars"
+    create_file "$special_dir/file with spaces.txt" $((10 * 1024)) "text"
+    success "Special character files generated"
+
+    show_summary
+}
+
 # Main execution
 main() {
     echo "=== Parallel Rsync Test Data Generator ==="
@@ -311,6 +344,10 @@ while [[ $# -gt 0 ]]; do
             VERBOSE=true
             shift
             ;;
+        --fast)
+            FAST_MODE=true
+            shift
+            ;;
         -d|--data-dir)
             DATA_DIR="$2"
             shift 2
@@ -318,6 +355,7 @@ while [[ $# -gt 0 ]]; do
         -h|--help)
             echo "Usage: $0 [OPTIONS]"
             echo "  -v, --verbose    Verbose output"
+            echo "  --fast           Fast mode with smaller files for CI"
             echo "  -d, --data-dir   Data directory (default: $DATA_DIR)"
             echo "  -h, --help       Show this help"
             exit 0
@@ -330,4 +368,8 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Run main function
-main
+if [ "$FAST_MODE" = true ]; then
+    main_fast
+else
+    main
+fi
