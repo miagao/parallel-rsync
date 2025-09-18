@@ -146,34 +146,6 @@ bytes_to_human() {
     fi
 }
 
-# Function to build find command with patterns
-build_find_command() {
-    local find_cmd="find \"$SOURCE_DIR\" -maxdepth $MAX_DEPTH -type f"
-
-    # Add include patterns (if any)
-    if [ -n "$INCLUDE_PATTERNS" ]; then
-        local include_expr=""
-        local first=true
-        for pattern in $INCLUDE_PATTERNS; do
-            if [ "$first" = true ]; then
-                include_expr="-name \"$pattern\""
-                first=false
-            else
-                include_expr="$include_expr -o -name \"$pattern\""
-            fi
-        done
-        find_cmd="$find_cmd \\( $include_expr \\)"
-    fi
-
-    # Add exclude patterns (if any)
-    if [ -n "$EXCLUDE_PATTERNS" ]; then
-        for pattern in $EXCLUDE_PATTERNS; do
-            find_cmd="$find_cmd ! -name \"$pattern\""
-        done
-    fi
-
-    echo "$find_cmd"
-}
 
 # Function to get file list with sizes
 get_file_list() {
