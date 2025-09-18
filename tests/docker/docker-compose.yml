@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # Source container with test data
   rsync-source:
