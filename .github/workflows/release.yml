@@ -1,0 +1,302 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., v2.0.0)'
+        required: true
+        default: 'v2.0.0'
+
+jobs:
+  validate-release:
+    name: Validate Release
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Validate version format
+      run: |
+        if [[ "${{ github.event.inputs.version || github.ref_name }}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+          echo "✅ Valid version format"
+        else
+          echo "❌ Invalid version format. Expected: vX.Y.Z"
+          exit 1
+        fi
+
+    - name: Run full test suite
+      run: |
+        cd tests/docker
+        docker-compose up -d
+        sleep 10
+        docker-compose exec -T rsync-source ./test-data-generator.sh
+        timeout 300 docker-compose exec -T rsync-tester ./run-tests.sh
+        docker-compose down -v
+
+  create-release-package:
+    name: Create Release Package
+    runs-on: ubuntu-latest
+    needs: validate-release
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Get version
+      id: version
+      run: |
+        VERSION="${{ github.event.inputs.version || github.ref_name }}"
+        echo "version=${VERSION}" >> $GITHUB_OUTPUT
+        echo "version_number=${VERSION#v}" >> $GITHUB_OUTPUT
+
+    - name: Create release directory
+      run: |
+        mkdir -p release/parallel-rsync-${{ steps.version.outputs.version_number }}
+        cp -r bin config docs examples LICENSE README.md release/parallel-rsync-${{ steps.version.outputs.version_number }}/
+
+    - name: Create installation script
+      run: |
+        cat > release/parallel-rsync-${{ steps.version.outputs.version_number }}/install.sh << 'EOF'
+        #!/bin/bash
+        # Parallel Rsync Installation Script
+
+        set -e
+
+        INSTALL_DIR="${1:-/usr/local}"
+        BIN_DIR="$INSTALL_DIR/bin"
+        DOC_DIR="$INSTALL_DIR/share/doc/parallel-rsync"
+
+        echo "Installing Parallel Rsync to $INSTALL_DIR..."
+
+        # Create directories
+        mkdir -p "$BIN_DIR" "$DOC_DIR"
+
+        # Install binary
+        cp bin/parallel_file_rsync.sh "$BIN_DIR/"
+        chmod +x "$BIN_DIR/parallel_file_rsync.sh"
+
+        # Install documentation
+        cp -r docs/* "$DOC_DIR/"
+        cp README.md LICENSE "$DOC_DIR/"
+
+        # Install examples and config
+        cp -r examples config "$DOC_DIR/"
+
+        echo "✅ Installation complete!"
+        echo "Run: parallel_file_rsync.sh --help"
+        EOF
+        chmod +x release/parallel-rsync-${{ steps.version.outputs.version_number }}/install.sh
+
+    - name: Create source tarball
+      run: |
+        cd release
+        tar -czf parallel-rsync-${{ steps.version.outputs.version_number }}.tar.gz \
+          parallel-rsync-${{ steps.version.outputs.version_number }}/
+
+    - name: Create binary package
+      run: |
+        cd release
+        mkdir -p parallel-rsync-${{ steps.version.outputs.version_number }}-bin
+        cp parallel-rsync-${{ steps.version.outputs.version_number }}/bin/parallel_file_rsync.sh \
+           parallel-rsync-${{ steps.version.outputs.version_number }}-bin/
+        cp parallel-rsync-${{ steps.version.outputs.version_number }}/README.md \
+           parallel-rsync-${{ steps.version.outputs.version_number }}-bin/
+        cp parallel-rsync-${{ steps.version.outputs.version_number }}/LICENSE \
+           parallel-rsync-${{ steps.version.outputs.version_number }}-bin/
+        tar -czf parallel-rsync-${{ steps.version.outputs.version_number }}-bin.tar.gz \
+          parallel-rsync-${{ steps.version.outputs.version_number }}-bin/
+
+    - name: Generate checksums
+      run: |
+        cd release
+        sha256sum *.tar.gz > checksums.txt
+        cat checksums.txt
+
+    - name: Upload release artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: release-packages
+        path: release/
+
+  create-github-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: create-release-package
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Download release artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: release-packages
+        path: release/
+
+    - name: Get version
+      id: version
+      run: |
+        VERSION="${{ github.event.inputs.version || github.ref_name }}"
+        echo "version=${VERSION}" >> $GITHUB_OUTPUT
+
+    - name: Generate release notes
+      run: |
+        cat > release_notes.md << 'EOF'
+        # Parallel File-Level Rsync ${{ steps.version.outputs.version }}
+
+        ## 🚀 Features
+        - High-performance parallel file synchronization
+        - Intelligent file size-based processing (large files individually, small files batched)
+        - Configurable parallelism (default 8 jobs)
+        - Progress tracking and resume support
+        - Advanced filtering with include/exclude patterns
+        - Comprehensive Docker-based testing environment
+
+        ## 📦 Installation
+
+        ### Quick Install (Binary)
+        ```bash
+        # Download and extract
+        curl -L https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.version }}/parallel-rsync-${{ steps.version.outputs.version }}-bin.tar.gz | tar -xz
+
+        # Install to /usr/local/bin (requires sudo)
+        sudo cp parallel_file_rsync.sh /usr/local/bin/
+
+        # Or install to user directory
+        mkdir -p ~/bin
+        cp parallel_file_rsync.sh ~/bin/
+        ```
+
+        ### Full Install (Source)
+        ```bash
+        # Download and extract full package
+        curl -L https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.version }}/parallel-rsync-${{ steps.version.outputs.version }}.tar.gz | tar -xz
+        cd parallel-rsync-${{ steps.version.outputs.version }}
+
+        # Run installer
+        sudo ./install.sh
+        # Or install to custom location
+        ./install.sh ~/local
+        ```
+
+        ## 💡 Quick Start
+        ```bash
+        # Basic synchronization
+        parallel_file_rsync.sh -s /source/directory -d /destination/directory -v
+
+        # High performance (16 parallel jobs)
+        parallel_file_rsync.sh -s /source -d /destination -j 16 --sort-by-size
+
+        # Network transfer with resume support
+        parallel_file_rsync.sh -s /local/data -d user@server:/backup --resume -v
+        ```
+
+        ## 🧪 Testing
+        ```bash
+        # Run comprehensive tests
+        cd tests/docker
+        docker-compose up -d
+        docker-compose exec rsync-source ./test-data-generator.sh -v
+        docker-compose exec rsync-tester ./run-tests.sh
+        ```
+
+        ## 📊 Performance
+        - ✅ Tested with 231 files (1.8GB)
+        - ✅ Parallel processing of large files (≥10MB)
+        - ✅ Efficient batching of small files (<10MB)
+        - ✅ Real-time progress tracking
+
+        ## 🔍 What's Included
+        - `parallel-rsync-${{ steps.version.outputs.version }}.tar.gz` - Full source package with docs, examples, and tests
+        - `parallel-rsync-${{ steps.version.outputs.version }}-bin.tar.gz` - Binary-only package for quick deployment
+        - `checksums.txt` - SHA256 checksums for verification
+
+        ## 🛠️ Requirements
+        - `rsync` - File synchronization utility
+        - `bc` - Calculator for size calculations
+        - `stat`, `find`, `realpath` - Standard Unix utilities
+        - **Optional**: Docker for testing
+
+        ---
+
+        **⚡ High-performance file synchronization made simple**
+        EOF
+
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ steps.version.outputs.version }}
+        name: Parallel Rsync ${{ steps.version.outputs.version }}
+        body_path: release_notes.md
+        files: |
+          release/parallel-rsync-*.tar.gz
+          release/checksums.txt
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish-docker-image:
+    name: Publish Docker Test Image
+    runs-on: ubuntu-latest
+    needs: validate-release
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Login to GitHub Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Get version
+      id: version
+      run: |
+        VERSION="${{ github.event.inputs.version || github.ref_name }}"
+        echo "version=${VERSION}" >> $GITHUB_OUTPUT
+
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: tests/docker
+        push: true
+        tags: |
+          ghcr.io/${{ github.repository }}/test-environment:latest
+          ghcr.io/${{ github.repository }}/test-environment:${{ steps.version.outputs.version }}
+        labels: |
+          org.opencontainers.image.title=Parallel Rsync Test Environment
+          org.opencontainers.image.description=Docker environment for testing parallel rsync
+          org.opencontainers.image.version=${{ steps.version.outputs.version }}
+          org.opencontainers.image.source=https://github.com/${{ github.repository }}
+
+  update-documentation:
+    name: Update Documentation
+    runs-on: ubuntu-latest
+    needs: create-github-release
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        fetch-depth: 0
+
+    - name: Update version badges in README
+      run: |
+        VERSION="${{ github.ref_name }}"
+        sed -i "s/version-[0-9.]*-blue/version-${VERSION#v}-blue/g" README.md
+
+        # Update any version references in docs
+        find docs/ -name "*.md" -exec sed -i "s/Version [0-9.]*\*/Version ${VERSION#v}/g" {} \;
+
+    - name: Commit documentation updates
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add README.md docs/
+        git diff --staged --quiet || git commit -m "docs: Update version references to ${{ github.ref_name }}"
+        git push origin HEAD:main

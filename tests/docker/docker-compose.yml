@@ -1,0 +1,59 @@
+version: '3.8'
+
+services:
+  # Source container with test data
+  rsync-source:
+    build: .
+    container_name: rsync-source
+    volumes:
+      - source-data:/data/source
+      - ../../bin/parallel_file_rsync.sh:/scripts/parallel_file_rsync.sh:ro
+      - ../scripts/test-data-generator.sh:/scripts/test-data-generator.sh:ro
+      - ../scripts/run-tests.sh:/scripts/run-tests.sh:ro
+    working_dir: /scripts
+    command: tail -f /dev/null
+    networks:
+      - rsync-net
+
+  # Destination container
+  rsync-dest:
+    build: .
+    container_name: rsync-dest
+    volumes:
+      - dest-data:/data/destination
+      - logs:/var/log/rsync
+    working_dir: /data
+    command: tail -f /dev/null
+    networks:
+      - rsync-net
+
+  # Test runner container
+  rsync-tester:
+    build: .
+    container_name: rsync-tester
+    volumes:
+      - source-data:/data/source:ro
+      - dest-data:/data/destination
+      - logs:/var/log/rsync
+      - ../../bin/parallel_file_rsync.sh:/scripts/parallel_file_rsync.sh:ro
+      - ../scripts/test-data-generator.sh:/scripts/test-data-generator.sh:ro
+      - ../scripts/run-tests.sh:/scripts/run-tests.sh:ro
+    working_dir: /scripts
+    command: tail -f /dev/null
+    depends_on:
+      - rsync-source
+      - rsync-dest
+    networks:
+      - rsync-net
+
+volumes:
+  source-data:
+    driver: local
+  dest-data:
+    driver: local
+  logs:
+    driver: local
+
+networks:
+  rsync-net:
+    driver: bridge

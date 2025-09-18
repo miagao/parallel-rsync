@@ -1,0 +1,258 @@
+name: Security
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    # Run security checks weekly on Sundays at 03:00 UTC
+    - cron: '0 3 * * 0'
+
+jobs:
+  shellcheck-security:
+    name: ShellCheck Security Analysis
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install shellcheck
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y shellcheck
+
+    - name: Run security-focused shellcheck
+      run: |
+        echo "Running security-focused shellcheck analysis..."
+
+        # Check for security issues in main script
+        shellcheck -S error bin/parallel_file_rsync.sh
+
+        # Check test scripts for security issues
+        shellcheck -S error tests/scripts/*.sh
+
+        # Check examples
+        shellcheck -S error examples/*.sh
+
+  secret-scan:
+    name: Secret Detection
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Run secret detection
+      run: |
+        echo "Scanning for potential secrets..."
+
+        # Check for common secret patterns
+        if grep -r -E "(password|passwd|pwd|secret|key|token|api_key)" --include="*.sh" --include="*.md" .; then
+          echo "⚠️  Found potential secrets in files above"
+          echo "Please review and ensure no actual secrets are committed"
+        else
+          echo "✅ No obvious secret patterns found"
+        fi
+
+        # Check for private keys
+        if find . -name "*.pem" -o -name "*.key" -o -name "*_rsa*" -o -name "*_ed25519*"; then
+          echo "❌ Found potential private key files"
+          exit 1
+        else
+          echo "✅ No private key files found"
+        fi
+
+  permissions-check:
+    name: File Permissions Check
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Check file permissions
+      run: |
+        echo "Checking file permissions..."
+
+        # Executable files should be executable
+        if [ ! -x "bin/parallel_file_rsync.sh" ]; then
+          echo "❌ Main script is not executable"
+          exit 1
+        fi
+
+        # Documentation should not be executable
+        if find docs/ -name "*.md" -executable; then
+          echo "❌ Documentation files should not be executable"
+          exit 1
+        fi
+
+        # Config files should not be executable
+        if find config/ -name "*.conf" -executable; then
+          echo "❌ Configuration files should not be executable"
+          exit 1
+        fi
+
+        echo "✅ File permissions are correct"
+
+  docker-security:
+    name: Docker Security Scan
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Build Docker image
+      run: |
+        cd tests/docker
+        docker build -t parallel-rsync-test .
+
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: 'parallel-rsync-test'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+
+    - name: Upload Trivy scan results
+      uses: github/codeql-action/upload-sarif@v2
+      if: always()
+      with:
+        sarif_file: 'trivy-results.sarif'
+
+  code-quality:
+    name: Code Quality Analysis
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Check for hardcoded paths
+      run: |
+        echo "Checking for hardcoded paths..."
+
+        # Look for suspicious hardcoded paths
+        if grep -r -E "/(home|root|Users)/[^/\s]*" --include="*.sh" bin/ tests/scripts/; then
+          echo "⚠️  Found potential hardcoded user paths"
+          echo "Consider using variables or relative paths"
+        else
+          echo "✅ No hardcoded user paths found"
+        fi
+
+    - name: Check for unsafe commands
+      run: |
+        echo "Checking for potentially unsafe commands..."
+
+        # Check for dangerous command patterns
+        UNSAFE_PATTERNS=(
+          "rm -rf /"
+          "rm -rf \$"
+          "chmod 777"
+          "chmod -R 777"
+          "eval.*\$"
+          "exec.*\$"
+        )
+
+        for pattern in "${UNSAFE_PATTERNS[@]}"; do
+          if grep -r -E "$pattern" --include="*.sh" .; then
+            echo "⚠️  Found potentially unsafe pattern: $pattern"
+          fi
+        done
+
+        echo "✅ Unsafe command check completed"
+
+    - name: Validate input handling
+      run: |
+        echo "Checking input validation..."
+
+        # Check if the script properly validates inputs
+        if grep -q "if.*-z.*SOURCE_DIR" bin/parallel_file_rsync.sh; then
+          echo "✅ Source directory validation found"
+        else
+          echo "⚠️  Source directory validation not found"
+        fi
+
+        if grep -q "if.*-z.*DESTINATION" bin/parallel_file_rsync.sh; then
+          echo "✅ Destination validation found"
+        else
+          echo "⚠️  Destination validation not found"
+        fi
+
+        if grep -q "if.*-d.*SOURCE_DIR" bin/parallel_file_rsync.sh; then
+          echo "✅ Source directory existence check found"
+        else
+          echo "⚠️  Source directory existence check not found"
+        fi
+
+  dependency-check:
+    name: Dependency Security Check
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Check for dependency requirements
+      run: |
+        echo "Checking dependencies used in scripts..."
+
+        # Extract all external commands used
+        COMMANDS=$(grep -rho -E '\b(rsync|bc|stat|find|realpath|sort|awk|sed|wc|du|chmod|mkdir|rm|cp|mv)\b' --include="*.sh" . | sort -u)
+
+        echo "Commands used in scripts:"
+        echo "$COMMANDS"
+
+        # Check if dangerous commands are used without proper validation
+        DANGEROUS_CMDS=("rm" "chmod" "mv")
+        for cmd in "${DANGEROUS_CMDS[@]}"; do
+          if echo "$COMMANDS" | grep -q "^$cmd$"; then
+            echo "⚠️  Script uses potentially dangerous command: $cmd"
+            echo "   Ensure proper validation and safe usage"
+          fi
+        done
+
+        echo "✅ Dependency check completed"
+
+  configuration-security:
+    name: Configuration Security
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Check default configurations
+      run: |
+        echo "Checking default configurations for security..."
+
+        # Check if default configurations are secure
+        if grep -q "DEFAULT_JOBS=8" config/defaults.conf; then
+          echo "✅ Reasonable default job count"
+        else
+          echo "⚠️  Check default job count configuration"
+        fi
+
+        # Check for secure temp file handling
+        if grep -q "/tmp/parallel_rsync_\$\$" bin/parallel_file_rsync.sh; then
+          echo "✅ Secure temp file naming with PID"
+        else
+          echo "⚠️  Check temp file security"
+        fi
+
+        echo "✅ Configuration security check completed"
+
+  github-actions-security:
+    name: GitHub Actions Security
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Check workflow security
+      run: |
+        echo "Checking GitHub Actions workflow security..."
+
+        # Check for pinned action versions
+        if grep -r "uses:.*@v[0-9]" .github/workflows/; then
+          echo "✅ Found pinned action versions"
+        else
+          echo "⚠️  Consider pinning action versions for security"
+        fi
+
+        # Check for secrets usage
+        if grep -r "secrets\." .github/workflows/; then
+          echo "✅ Secrets are used in workflows"
+          echo "   Ensure only necessary secrets are used"
+        fi
+
+        echo "✅ GitHub Actions security check completed"

@@ -1,0 +1,225 @@
+# Parallel Rsync .gitignore
+
+# =============================================================================
+# Temporary and Runtime Files
+# =============================================================================
+
+# Temporary files created by the script
+/tmp/parallel_rsync_*
+/tmp/find_output_*
+/tmp/rsync_small_files_*
+/tmp/completed_files_*
+/tmp/failed_files_*
+
+# Log files
+*.log
+logs/
+/var/log/rsync/
+
+# Backup and sync test directories
+test_data/
+test_destination/
+backup_test/
+sync_test/
+
+# =============================================================================
+# Docker and Testing
+# =============================================================================
+
+# Docker volumes and data
+.docker/
+docker-data/
+
+# Test output directories
+tests/output/
+tests/results/
+tests/temp/
+
+# Coverage and test reports
+coverage/
+test-reports/
+*.coverage
+
+# =============================================================================
+# Operating System Files
+# =============================================================================
+
+# macOS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msm
+*.msp
+*.lnk
+
+# =============================================================================
+# Editor and IDE Files
+# =============================================================================
+
+# Vim
+*.swp
+*.swo
+*~
+.vimrc.local
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
+.\#*
+
+# VSCode
+.vscode/
+*.code-workspace
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Atom
+.atom/
+
+# JetBrains IDEs
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# =============================================================================
+# Archives and Packages
+# =============================================================================
+
+# Compressed files
+*.7z
+*.dmg
+*.gz
+*.iso
+*.jar
+*.rar
+*.tar
+*.zip
+
+# =============================================================================
+# Configuration and Secrets
+# =============================================================================
+
+# Local configuration overrides
+config/local.conf
+config/*.local
+.env
+.env.local
+
+# SSH keys and credentials
+*.pem
+*.key
+id_rsa*
+id_ecdsa*
+id_ed25519*
+
+# =============================================================================
+# Build and Distribution
+# =============================================================================
+
+# Build artifacts
+build/
+dist/
+*.deb
+*.rpm
+*.pkg
+*.dmg
+
+# Release files
+releases/
+packages/
+
+# =============================================================================
+# Git and Version Control
+# =============================================================================
+
+# Git patches
+*.patch
+*.diff
+
+# Backup files
+*.orig
+*.bak
+*.backup
+
+# =============================================================================
+# Project Specific
+# =============================================================================
+
+# Large test files (keep small samples only)
+tests/data/large_files/
+tests/data/huge_files/
+tests/data/*.bin
+tests/data/*.dat
+tests/data/*.img
+
+# Performance benchmarks data
+benchmarks/data/
+performance/results/
+
+# User-specific configurations
+my-*.sh
+personal-*.conf
+user-config.*
+
+# =============================================================================
+# Miscellaneous
+# =============================================================================
+
+# Temporary editor files
+*.tmp
+*.temp
+*.cache
+
+# Lock files
+*.lock
+.*.lock
+
+# PID files
+*.pid
+
+# Core dumps
+core
+core.*
+
+# Logs directory
+logs/
+
+# Node modules (if any JS tools are added)
+node_modules/
+
+# Python (if any Python tools are added)
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/

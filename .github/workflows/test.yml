@@ -1,0 +1,217 @@
+name: Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    # Run tests daily at 02:00 UTC
+    - cron: '0 2 * * *'
+
+jobs:
+  lint:
+    name: Lint Scripts
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install shellcheck
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y shellcheck
+
+    - name: Lint main script
+      run: shellcheck bin/parallel_file_rsync.sh
+
+    - name: Lint test scripts
+      run: |
+        shellcheck tests/scripts/*.sh
+        shellcheck examples/*.sh
+
+  test-dependencies:
+    name: Test Dependencies
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Check required commands
+      run: |
+        echo "Checking for required dependencies..."
+        command -v rsync || (echo "rsync not found" && exit 1)
+        command -v bc || (echo "bc not found" && exit 1)
+        command -v stat || (echo "stat not found" && exit 1)
+        command -v find || (echo "find not found" && exit 1)
+        command -v realpath || (echo "realpath not found" && exit 1)
+        echo "All dependencies found!"
+
+    - name: Test script help
+      run: |
+        chmod +x bin/parallel_file_rsync.sh
+        ./bin/parallel_file_rsync.sh --help
+
+  docker-tests:
+    name: Docker Integration Tests
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Build test environment
+      run: |
+        cd tests/docker
+        docker-compose build
+
+    - name: Start test environment
+      run: |
+        cd tests/docker
+        docker-compose up -d
+
+        # Wait for containers to be ready
+        sleep 10
+
+        # Verify containers are running
+        docker-compose ps
+
+    - name: Generate test data
+      run: |
+        cd tests/docker
+        docker-compose exec -T rsync-source ./test-data-generator.sh
+
+    - name: Run basic functionality test
+      run: |
+        cd tests/docker
+        docker-compose exec -T rsync-tester ./parallel_file_rsync.sh \
+          -s /data/source/large_files \
+          -d /data/destination/test \
+          --max-depth 5 -v
+
+    - name: Verify test results
+      run: |
+        cd tests/docker
+        # Check that files were transferred
+        file_count=$(docker-compose exec -T rsync-tester find /data/destination/test -type f | wc -l)
+        echo "Files transferred: $file_count"
+        if [ "$file_count" -lt 5 ]; then
+          echo "ERROR: Expected at least 5 files, got $file_count"
+          exit 1
+        fi
+        echo "✅ Basic functionality test passed"
+
+    - name: Run comprehensive test suite
+      run: |
+        cd tests/docker
+        # Run tests with timeout
+        timeout 300 docker-compose exec -T rsync-tester ./run-tests.sh || {
+          echo "Tests timed out or failed"
+          exit 1
+        }
+
+    - name: Cleanup
+      if: always()
+      run: |
+        cd tests/docker
+        docker-compose down -v
+
+  performance-test:
+    name: Performance Test
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Performance benchmark
+      run: |
+        cd tests/docker
+        docker-compose up -d
+        sleep 10
+
+        # Generate test data
+        docker-compose exec -T rsync-source ./test-data-generator.sh
+
+        # Run performance test with different job counts
+        echo "Testing performance with different job counts..."
+        for jobs in 2 4 8; do
+          echo "Testing with $jobs jobs..."
+          start_time=$(date +%s)
+          docker-compose exec -T rsync-tester ./parallel_file_rsync.sh \
+            -s /data/source \
+            -d /data/destination/perf_${jobs} \
+            -j $jobs --max-depth 5
+          end_time=$(date +%s)
+          duration=$((end_time - start_time))
+          echo "Jobs: $jobs, Duration: ${duration}s"
+
+          # Clean destination for next test
+          docker-compose exec -T rsync-tester rm -rf /data/destination/perf_${jobs}
+        done
+
+        docker-compose down -v
+
+  edge-cases:
+    name: Edge Case Tests
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Test with special characters
+      run: |
+        cd tests/docker
+        docker-compose up -d
+        sleep 10
+
+        # Create files with special characters
+        docker-compose exec -T rsync-source bash -c "
+          mkdir -p /data/source/special
+          touch '/data/source/special/file with spaces.txt'
+          touch '/data/source/special/file[brackets].txt'
+          touch '/data/source/special/file(parens).txt'
+          echo 'test content' > '/data/source/special/file with spaces.txt'
+        "
+
+        # Test sync with special characters
+        docker-compose exec -T rsync-tester ./parallel_file_rsync.sh \
+          -s /data/source/special \
+          -d /data/destination/special \
+          -v
+
+        # Verify files were transferred
+        transferred=$(docker-compose exec -T rsync-tester find /data/destination/special -type f | wc -l)
+        if [ "$transferred" -lt 3 ]; then
+          echo "ERROR: Special character files not transferred correctly"
+          exit 1
+        fi
+        echo "✅ Special character test passed"
+
+        docker-compose down -v
+
+  documentation:
+    name: Documentation Check
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Check documentation exists
+      run: |
+        test -f README.md
+        test -f docs/README.md
+        test -f docs/README-testing.md
+        test -f LICENSE
+        echo "✅ All documentation files present"
+
+    - name: Check examples are valid
+      run: |
+        test -f examples/basic-sync.sh
+        test -f examples/config-template.sh
+        chmod +x examples/*.sh
+        echo "✅ Example files are valid"
+
+    - name: Validate script has help
+      run: |
+        chmod +x bin/parallel_file_rsync.sh
+        ./bin/parallel_file_rsync.sh --help | grep -q "Usage:"
+        echo "✅ Help documentation is accessible"
