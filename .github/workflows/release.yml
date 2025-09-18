@@ -30,11 +30,11 @@ jobs:
     - name: Run full test suite
       run: |
         cd tests/docker
-        docker-compose up -d
+        docker compose up -d
         sleep 10
-        docker-compose exec -T rsync-source ./test-data-generator.sh
-        timeout 300 docker-compose exec -T rsync-tester ./run-tests.sh
-        docker-compose down -v
+        docker compose exec -T rsync-source ./test-data-generator.sh
+        timeout 300 docker compose exec -T rsync-tester ./run-tests.sh
+        docker compose down -v
 
   create-release-package:
     name: Create Release Package
@@ -195,9 +195,9 @@ jobs:
         ```bash
         # Run comprehensive tests
         cd tests/docker
-        docker-compose up -d
-        docker-compose exec rsync-source ./test-data-generator.sh -v
-        docker-compose exec rsync-tester ./run-tests.sh
+        docker compose up -d
+        docker compose exec rsync-source ./test-data-generator.sh -v
+        docker compose exec rsync-tester ./run-tests.sh
         ```
 
         ## 📊 Performance

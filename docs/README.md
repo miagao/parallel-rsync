@@ -124,16 +124,16 @@ A comprehensive Docker-based testing suite is provided for safe validation:
 
 ```bash
 # Start test environment
-docker-compose up -d
+docker compose up -d
 
 # Generate test data
-docker-compose exec rsync-source ./test-data-generator.sh -v
+docker compose exec rsync-source ./test-data-generator.sh -v
 
 # Run full test suite
-docker-compose exec rsync-tester ./run-tests.sh
+docker compose exec rsync-tester ./run-tests.sh
 
 # Run performance benchmarks
-docker-compose exec rsync-tester ./run-tests.sh --benchmark
+docker compose exec rsync-tester ./run-tests.sh --benchmark
 ```
 
 See `README-testing.md` for detailed testing documentation.

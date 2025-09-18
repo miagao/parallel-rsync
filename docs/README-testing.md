@@ -14,7 +14,7 @@ This directory contains a comprehensive Docker-based testing environment for the
 
 ### Core Files
 - `parallel_file_rsync.sh` - The main parallel rsync script
-- `docker-compose.yml` - Multi-container testing environment
+- `docker compose.yml` - Multi-container testing environment
 - `Dockerfile` - Ubuntu-based container with rsync and dependencies
 
 ### Testing Scripts
@@ -28,27 +28,27 @@ This directory contains a comprehensive Docker-based testing environment for the
 
 ```bash
 # Build containers and start the testing environment
-docker-compose up -d
+docker compose up -d
 
 # Verify containers are running
-docker-compose ps
+docker compose ps
 ```
 
 ### 2. Generate Test Data
 
 ```bash
 # Generate test data in the source container
-docker-compose exec rsync-source ./test-data-generator.sh -v
+docker compose exec rsync-source ./test-data-generator.sh -v
 ```
 
 ### 3. Run the Test Suite
 
 ```bash
 # Run all tests
-docker-compose exec rsync-tester ./run-tests.sh
+docker compose exec rsync-tester ./run-tests.sh
 
 # Run tests with performance benchmarking
-docker-compose exec rsync-tester ./run-tests.sh --benchmark
+docker compose exec rsync-tester ./run-tests.sh --benchmark
 ```
 
 ## 📊 Test Data Structure
@@ -123,7 +123,7 @@ The test data generator creates a comprehensive file structure:
 ### Interactive Testing
 ```bash
 # Enter the tester container
-docker-compose exec rsync-tester bash
+docker compose exec rsync-tester bash
 
 # Run individual tests manually
 ./parallel_file_rsync.sh -s /data/source -d /data/destination -j 8 -v
@@ -135,10 +135,10 @@ docker-compose exec rsync-tester bash
 ### Custom Test Data
 ```bash
 # Generate custom test data
-docker-compose exec rsync-source ./test-data-generator.sh --verbose --data-dir /data/source
+docker compose exec rsync-source ./test-data-generator.sh --verbose --data-dir /data/source
 
 # Create specific file sizes for testing
-docker-compose exec rsync-source bash -c "
+docker compose exec rsync-source bash -c "
   dd if=/dev/urandom of=/data/source/custom_100MB.bin bs=1M count=100
   dd if=/dev/zero of=/data/source/custom_50MB.dat bs=1M count=50
 "
@@ -149,21 +149,21 @@ docker-compose exec rsync-source bash -c "
 ### View Real-time Progress
 ```bash
 # Follow rsync script output
-docker-compose exec rsync-tester ./parallel_file_rsync.sh -s /data/source -d /data/destination -v
+docker compose exec rsync-tester ./parallel_file_rsync.sh -s /data/source -d /data/destination -v
 
 # Monitor individual job logs
-docker-compose exec rsync-tester ./parallel_file_rsync.sh \
+docker compose exec rsync-tester ./parallel_file_rsync.sh \
   -s /data/source -d /data/destination \
   --log-dir /var/log/rsync/individual_jobs -v
 
 # View individual job logs
-docker-compose exec rsync-tester ls -la /var/log/rsync/individual_jobs/
+docker compose exec rsync-tester ls -la /var/log/rsync/individual_jobs/
 ```
 
 ### Performance Analysis
 ```bash
 # Time different configurations
-docker-compose exec rsync-tester bash -c "
+docker compose exec rsync-tester bash -c "
   time ./parallel_file_rsync.sh -s /data/source -d /data/destination -j 4
   rm -rf /data/destination/*
   time ./parallel_file_rsync.sh -s /data/source -d /data/destination -j 8
@@ -175,33 +175,33 @@ docker-compose exec rsync-tester bash -c "
 ### Container Issues
 ```bash
 # Rebuild containers if needed
-docker-compose down
-docker-compose build --no-cache
-docker-compose up -d
+docker compose down
+docker compose build --no-cache
+docker compose up -d
 
 # Check container logs
-docker-compose logs rsync-tester
+docker compose logs rsync-tester
 ```
 
 ### Test Data Issues
 ```bash
 # Regenerate test data
-docker-compose exec rsync-source rm -rf /data/source/*
-docker-compose exec rsync-source ./test-data-generator.sh -v
+docker compose exec rsync-source rm -rf /data/source/*
+docker compose exec rsync-source ./test-data-generator.sh -v
 ```
 
 ### Clean Slate
 ```bash
 # Reset all test data and destinations
-docker-compose down -v  # Removes volumes
-docker-compose up -d
-docker-compose exec rsync-source ./test-data-generator.sh -v
+docker compose down -v  # Removes volumes
+docker compose up -d
+docker compose exec rsync-source ./test-data-generator.sh -v
 ```
 
 ## ⚙️ Configuration Options
 
 ### Environment Variables
-You can customize the testing environment by modifying the docker-compose.yml:
+You can customize the testing environment by modifying the docker compose.yml:
 
 ```yaml
 environment:
@@ -237,24 +237,24 @@ environment:
 ### Stress Testing
 ```bash
 # Generate very large dataset
-docker-compose exec rsync-source bash -c "
+docker compose exec rsync-source bash -c "
   for i in {1..10}; do
     dd if=/dev/urandom of=/data/source/stress_\${i}.bin bs=1M count=500
   done
 "
 
 # Test with maximum parallelism
-docker-compose exec rsync-tester ./parallel_file_rsync.sh \
+docker compose exec rsync-tester ./parallel_file_rsync.sh \
   -s /data/source -d /data/destination -j 32 -v
 ```
 
 ### Network Simulation
 ```bash
 # Add network latency (requires tc tools)
-docker-compose exec rsync-tester tc qdisc add dev eth0 root netem delay 100ms
+docker compose exec rsync-tester tc qdisc add dev eth0 root netem delay 100ms
 
 # Test over simulated slow network
-docker-compose exec rsync-tester ./parallel_file_rsync.sh \
+docker compose exec rsync-tester ./parallel_file_rsync.sh \
   -s /data/source -d /data/destination -j 4 -v
 ```
 
@@ -262,10 +262,10 @@ docker-compose exec rsync-tester ./parallel_file_rsync.sh \
 
 ```bash
 # Stop containers and remove volumes
-docker-compose down -v
+docker compose down -v
 
 # Remove images
-docker-compose down --rmi all
+docker compose down --rmi all
 ```
 
 This testing suite provides a safe, reproducible environment to validate the parallel rsync script across various scenarios and edge cases.
@@ -288,7 +288,7 @@ This testing suite provides a safe, reproducible environment to validate the par
 **Validation:**
 ```bash
 # Quick verification test
-docker-compose exec rsync-tester ./parallel_file_rsync.sh \
+docker compose exec rsync-tester ./parallel_file_rsync.sh \
   -s /data/source -d /data/destination --max-depth 5 -v
 
 # Expected output:

@@ -20,10 +20,10 @@ Thank you for your interest in contributing to the Parallel Rsync project! We we
 2. **Test the Current Version**
    ```bash
    cd tests/docker
-   docker-compose up -d
-   docker-compose exec rsync-source ./test-data-generator.sh -v
-   docker-compose exec rsync-tester ./run-tests.sh
-   docker-compose down -v
+   docker compose up -d
+   docker compose exec rsync-source ./test-data-generator.sh -v
+   docker compose exec rsync-tester ./run-tests.sh
+   docker compose down -v
    ```
 
 ## 📋 Types of Contributions
@@ -69,16 +69,16 @@ git checkout -b fix/bug-description
 ```bash
 # Run the full test suite
 cd tests/docker
-docker-compose up -d
-docker-compose exec rsync-source ./test-data-generator.sh
-docker-compose exec rsync-tester ./run-tests.sh
+docker compose up -d
+docker compose exec rsync-source ./test-data-generator.sh
+docker compose exec rsync-tester ./run-tests.sh
 
 # Test specific functionality
-docker-compose exec rsync-tester ./parallel_file_rsync.sh \
+docker compose exec rsync-tester ./parallel_file_rsync.sh \
   -s /data/source/large_files -d /data/destination/test -v
 
 # Clean up
-docker-compose down -v
+docker compose down -v
 ```
 
 ### 4. Lint Your Code

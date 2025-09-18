@@ -32,7 +32,7 @@ parallel-rsync/
 ├── examples/                    # Usage examples and templates
 ├── tests/                       # Testing infrastructure
 │   ├── docker/                 # Docker testing environment
-│   │   ├── docker-compose.yml  # Multi-container test setup
+│   │   ├── docker compose.yml  # Multi-container test setup
 │   │   └── Dockerfile          # Test container definition
 │   └── scripts/                # Test scripts
 │       ├── test-data-generator.sh  # Creates test datasets
@@ -61,9 +61,9 @@ Run the comprehensive test suite using Docker:
 
 ```bash
 cd tests/docker
-docker-compose up -d
-docker-compose exec rsync-source ./test-data-generator.sh -v
-docker-compose exec rsync-tester ./run-tests.sh
+docker compose up -d
+docker compose exec rsync-source ./test-data-generator.sh -v
+docker compose exec rsync-tester ./run-tests.sh
 ```
 
 ## 💡 Quick Examples
@@ -112,8 +112,8 @@ docker-compose exec rsync-tester ./run-tests.sh
 ```bash
 # Test your changes
 cd tests/docker
-docker-compose up -d
-docker-compose exec rsync-tester ./run-tests.sh
+docker compose up -d
+docker compose exec rsync-tester ./run-tests.sh
 ```
 
 ## 📄 License
