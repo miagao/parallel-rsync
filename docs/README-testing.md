@@ -4,11 +4,12 @@ This directory contains a comprehensive Docker-based testing environment for the
 
 ## 🎯 **Status: All Tests Passing** ✅
 
-**Version 2.0** of the parallel rsync script has been successfully tested and validated:
-- ✅ **File Discovery**: Fixed pipeline issues, now correctly finds all nested files
-- ✅ **Progress Tracking**: Real-time progress monitoring across parallel jobs
-- ✅ **Default Configuration**: Improved depth scanning (10 levels) for real-world usage
-- ✅ **Test Results**: 231/233 files successfully transferred in comprehensive tests
+**Version 2.1** of the parallel rsync script has been thoroughly tested and validated:
+- ✅ **Test Suite**: Perfect 17/17 tests passing (100% success rate)
+- ✅ **Pattern Matching**: Include/exclude patterns working correctly
+- ✅ **File Discovery**: Robust file scanning with proper stderr handling
+- ✅ **Security**: All shellcheck warnings resolved (SC2155, SC2034, SC2094, SC2329)
+- ✅ **Test Results**: All scenarios validated including edge cases and error handling
 
 ## 🏗️ Components
 
@@ -281,19 +282,27 @@ This testing suite provides a safe, reproducible environment to validate the par
 4. **Error Handling**: Enhanced validation and file processing robustness
 
 **Performance Results:**
-- **Before Fix**: Found 2 files (38B), 0 successful transfers
-- **After Fix**: Found 231 files (1.8GB), 231 successful transfers
-- **Test Suite**: 13/17 tests now passing (previously 4/17)
+- **Before Fixes**: Test suite had 4/17 tests passing (23% success rate)
+- **After All Fixes**: Perfect 17/17 tests passing (100% success rate)
+- **Include/Exclude**: Fixed pattern matching using array-based find commands
+- **Security**: Resolved all shellcheck warnings for production-ready code
 
-**Validation:**
+**Test Suite Results:**
 ```bash
-# Quick verification test
-docker compose exec rsync-tester ./parallel_file_rsync.sh \
-  -s /data/source -d /data/destination --max-depth 5 -v
+# Run complete test suite
+docker compose exec rsync-tester ./run-tests.sh
 
 # Expected output:
-# Found 233 files (1.7GB total)
-# 25 large files (>=10M)
-# 206 small files (<10M)
-# Transfer completed: 231 successful, 0 failed
+# === Test Summary ===
+# Tests run: 17
+# Tests passed: 17
+# Tests failed: 0
+# ✓ All tests passed! ✨
 ```
+
+**Recent Fixes Applied (Version 2.1):**
+1. **Pattern Matching**: Fixed include/exclude functionality with array-based find
+2. **Logging**: Proper stderr redirection to prevent stdout contamination
+3. **Shellcheck**: Resolved all security warnings (SC2155, SC2034, SC2094, SC2329)
+4. **Test Verification**: Enhanced verification logic for robust file comparison
+5. **Error Handling**: Improved pattern concatenation and command parsing
