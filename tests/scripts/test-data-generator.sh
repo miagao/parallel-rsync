@@ -39,18 +39,19 @@ create_file() {
             local text="This is test data for parallel rsync testing. Line number: "
             local temp_file
             temp_file="/tmp/test_data_$$_$(basename "$filepath")"
+
+            # Calculate approximate line size and target line count
+            local line_size=$((${#text} + 10))  # text + line number + newline
+            local target_lines=$((size / line_size + 100))  # Add buffer for safety
+
             {
                 local i=1
-                local current_size=0
-                while [ "$current_size" -lt "$size" ]; do
+                while [ "$i" -le "$target_lines" ]; do
                     echo "${text}${i}"
                     i=$((i + 1))
-                    # Check size periodically to avoid infinite loops
-                    if [ $((i % 100)) -eq 0 ]; then
-                        current_size=$(stat -c%s "$temp_file" 2>/dev/null || echo 0)
-                    fi
                 done
             } > "$temp_file"
+
             # Truncate to exact size and move to final location
             truncate -s "$size" "$temp_file"
             mv "$temp_file" "$filepath"
