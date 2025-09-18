@@ -107,7 +107,7 @@ run_sync() {
     if [ -n "$INCLUDE_PATTERNS" ]; then
         cmd="$cmd $INCLUDE_PATTERNS"
     fi
-    if [ [ -n "$EXCLUDE_PATTERNS" ]; then
+    if [ -n "$EXCLUDE_PATTERNS" ]; then
         cmd="$cmd $EXCLUDE_PATTERNS"
     fi
 

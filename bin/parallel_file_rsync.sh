@@ -33,10 +33,7 @@ NC='\033[0m' # No Color
 
 # Global counters
 TOTAL_FILES=0
-COMPLETED_FILES=0
-FAILED_FILES=0
 TOTAL_SIZE=0
-TRANSFERRED_SIZE=0
 
 # Function to display usage
 show_usage() {
@@ -228,7 +225,7 @@ sync_large_file() {
     # Create destination directory
     mkdir -p "$dest_dir"
 
-    log "PROGRESS" "Job $job_id: Starting $(basename "$filepath") [$(bytes_to_human $filesize)]"
+    log "PROGRESS" "Job $job_id: Starting $(basename "$filepath") [$(bytes_to_human "$filesize")]"
 
     # Build rsync command
     local cmd="rsync $RSYNC_OPTIONS"
@@ -312,7 +309,7 @@ sync_small_files() {
         local end_time=$(date +%s)
         local duration=$((end_time - start_time))
         # Use temp files for cross-process communication
-        for i in $(seq 1 $file_count); do
+        for _ in $(seq 1 "$file_count"); do
             echo "0" >> "/tmp/completed_files_$$"
         done
         log "SUCCESS" "Job $job_id: Completed batch of $file_count files in ${duration}s"
@@ -320,7 +317,7 @@ sync_small_files() {
         return 0
     else
         local exit_code=$?
-        for i in $(seq 1 $file_count); do
+        for _ in $(seq 1 "$file_count"); do
             echo "1" >> "/tmp/failed_files_$$"
         done
         log "ERROR" "Job $job_id: Failed batch sync (exit code: $exit_code)"
@@ -346,12 +343,14 @@ show_progress() {
     fi
 
     local percent=0
-    if [ $TOTAL_FILES -gt 0 ]; then
+    if [ "$TOTAL_FILES" -gt 0 ]; then
         percent=$(( (completed_count + failed_count) * 100 / TOTAL_FILES ))
     fi
 
-    local transferred_human=$(bytes_to_human $transferred_bytes)
-    local total_human=$(bytes_to_human $TOTAL_SIZE)
+    local transferred_human
+    transferred_human=$(bytes_to_human "$transferred_bytes")
+    local total_human
+    total_human=$(bytes_to_human "$TOTAL_SIZE")
 
     log "PROGRESS" "Overall: $percent% complete ($completed_count/$TOTAL_FILES files, $transferred_human/$total_human transferred)"
 }
@@ -391,7 +390,7 @@ process_files() {
     local large_count=$(wc -l < "$large_files")
     local small_count=$(wc -l < "$small_files")
 
-    log "INFO" "Found $TOTAL_FILES files ($(bytes_to_human $TOTAL_SIZE) total)"
+    log "INFO" "Found $TOTAL_FILES files ($(bytes_to_human "$TOTAL_SIZE") total)"
     log "INFO" "  - $large_count large files (>=$MIN_FILE_SIZE)"
     log "INFO" "  - $small_count small files (<$MIN_FILE_SIZE)"
 
@@ -414,7 +413,7 @@ process_files() {
 
         while read -r filepath; do
             # Wait if we've reached max jobs
-            while [ $(jobs -r | wc -l) -ge $JOBS ]; do
+            while [ "$(jobs -r | wc -l)" -ge "$JOBS" ]; do
                 sleep 0.1
                 show_progress
             done
@@ -441,7 +440,7 @@ process_files() {
                 # Start new batch
                 if [ -n "$batch_file" ] && [ -s "$batch_file" ]; then
                     # Wait for available slot
-                    while [ $(jobs -r | wc -l) -ge $JOBS ]; do
+                    while [ "$(jobs -r | wc -l)" -ge "$JOBS" ]; do
                         sleep 0.1
                         show_progress
                     done
@@ -452,7 +451,7 @@ process_files() {
 
                 batch_num=$((batch_num + 1))
                 batch_file="$temp_dir/small_batch_$batch_num.txt"
-                > "$batch_file"  # Clear file
+                true > "$batch_file"  # Clear file
             fi
 
             echo "$filepath" >> "$batch_file"
@@ -461,7 +460,7 @@ process_files() {
 
         # Process final batch
         if [ -n "$batch_file" ] && [ -s "$batch_file" ]; then
-            while [ $(jobs -r | wc -l) -ge $JOBS ]; do
+            while [ "$(jobs -r | wc -l)" -ge "$JOBS" ]; do
                 sleep 0.1
                 show_progress
             done
@@ -473,7 +472,7 @@ process_files() {
 
     # Wait for all jobs to complete
     log "INFO" "Waiting for all transfer jobs to complete..."
-    while [ $(jobs -r | wc -l) -gt 0 ]; do
+    while [ "$(jobs -r | wc -l)" -gt 0 ]; do
         sleep 1
         show_progress
     done
@@ -502,7 +501,7 @@ process_files() {
     # Cleanup temp files
     rm -f "/tmp/completed_files_$$" "/tmp/failed_files_$$"
 
-    if [ $final_failed -gt 0 ]; then
+    if [ "$final_failed" -gt 0 ]; then
         log "WARNING" "Some files failed to transfer. Check logs for details."
         return 1
     else
@@ -551,7 +550,7 @@ while [[ $# -gt 0 ]]; do
             shift 2
             ;;
         --resume)
-            RESUME_MODE=true
+            # Resume mode enabled (functionality built into rsync commands)
             RSYNC_OPTIONS="$RSYNC_OPTIONS --partial"
             shift
             ;;
