@@ -46,17 +46,21 @@ jobs:
       run: |
         echo "Scanning for potential secrets..."
 
-        # Check for common secret patterns
-        if grep -r -E "(password|passwd|pwd|secret|key|token|api_key)" --include="*.sh" --include="*.md" .; then
-          echo "⚠️  Found potential secrets in files above"
+        # Check for common secret patterns (exclude documentation references)
+        SECRET_MATCHES=$(grep -r -E "(password|passwd|pwd|secret|key|token|api_key)" --include="*.sh" --include="*.md" . | grep -v -E "(ssh-key|SSH key|api_key.*:|password.*:|Password:|API key|private key)" || true)
+        if [ -n "$SECRET_MATCHES" ]; then
+          echo "⚠️  Found potential secrets:"
+          echo "$SECRET_MATCHES"
           echo "Please review and ensure no actual secrets are committed"
         else
           echo "✅ No obvious secret patterns found"
         fi
 
         # Check for private keys
-        if find . -name "*.pem" -o -name "*.key" -o -name "*_rsa*" -o -name "*_ed25519*"; then
-          echo "❌ Found potential private key files"
+        PRIVATE_KEYS=$(find . -name "*.pem" -o -name "*.key" -o -name "*_rsa*" -o -name "*_ed25519*" 2>/dev/null || true)
+        if [ -n "$PRIVATE_KEYS" ]; then
+          echo "❌ Found potential private key files:"
+          echo "$PRIVATE_KEYS"
           exit 1
         else
           echo "✅ No private key files found"
@@ -79,14 +83,18 @@ jobs:
         fi
 
         # Documentation should not be executable
-        if find docs/ -name "*.md" -executable; then
-          echo "❌ Documentation files should not be executable"
+        EXEC_DOCS=$(find docs/ -name "*.md" -executable 2>/dev/null || true)
+        if [ -n "$EXEC_DOCS" ]; then
+          echo "❌ Documentation files should not be executable:"
+          echo "$EXEC_DOCS"
           exit 1
         fi
 
         # Config files should not be executable
-        if find config/ -name "*.conf" -executable; then
-          echo "❌ Configuration files should not be executable"
+        EXEC_CONFIGS=$(find config/ -name "*.conf" -executable 2>/dev/null || true)
+        if [ -n "$EXEC_CONFIGS" ]; then
+          echo "❌ Configuration files should not be executable:"
+          echo "$EXEC_CONFIGS"
           exit 1
         fi
 
@@ -111,7 +119,7 @@ jobs:
         output: 'trivy-results.sarif'
 
     - name: Upload Trivy scan results
-      uses: github/codeql-action/upload-sarif@v2
+      uses: github/codeql-action/upload-sarif@v3
       if: always()
       with:
         sarif_file: 'trivy-results.sarif'
