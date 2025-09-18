@@ -3,10 +3,22 @@
 # Test Runner for Parallel Rsync Script
 # Runs various test scenarios to validate the parallel_file_rsync.sh script
 
-SOURCE_DIR="/data/source"
-DEST_DIR="/data/destination"
-LOG_DIR="/var/log/rsync"
-SCRIPT_PATH="/scripts/parallel_file_rsync.sh"
+# Detect environment and set paths accordingly
+if [ -d "/data/source" ]; then
+    # CI/Docker environment
+    SOURCE_DIR="/data/source"
+    DEST_DIR="/data/destination"
+    LOG_DIR="/var/log/rsync"
+    SCRIPT_PATH="/scripts/parallel_file_rsync.sh"
+else
+    # Local development environment
+    SCRIPT_DIR="$(dirname "$(realpath "${BASH_SOURCE[0]}")")"
+    PROJECT_ROOT="$(dirname "$(dirname "$SCRIPT_DIR")")"
+    SOURCE_DIR="$PROJECT_ROOT/tests/data/source"
+    DEST_DIR="$PROJECT_ROOT/tests/data/destination"
+    LOG_DIR="$PROJECT_ROOT/tests/data/logs"
+    SCRIPT_PATH="$PROJECT_ROOT/bin/parallel_file_rsync.sh"
+fi
 
 # Colors for output
 RED='\033[0;31m'
@@ -207,23 +219,23 @@ run_test() {
 # Test scenarios
 test_basic_sync() {
     run_test "Basic Sync" \
-        "$SCRIPT_PATH -s '$SOURCE_DIR' -d '$DEST_DIR' -v"
+        "$SCRIPT_PATH -s '$SOURCE_DIR' -d '$DEST_DIR' -m 1K -v"
 }
 
 test_dry_run() {
     run_test "Dry Run" \
-        "$SCRIPT_PATH -s '$SOURCE_DIR' -d '$DEST_DIR' -n -v" \
+        "$SCRIPT_PATH -s '$SOURCE_DIR' -d '$DEST_DIR' -m 1K -n -v" \
         "dry_run"
 }
 
 test_high_parallelism() {
     run_test "High Parallelism (16 jobs)" \
-        "$SCRIPT_PATH -s '$SOURCE_DIR' -d '$DEST_DIR' -j 16 -v"
+        "$SCRIPT_PATH -s '$SOURCE_DIR' -d '$DEST_DIR' -j 16 -m 1K -v"
 }
 
 test_low_parallelism() {
     run_test "Low Parallelism (2 jobs)" \
-        "$SCRIPT_PATH -s '$SOURCE_DIR' -d '$DEST_DIR' -j 2 -v"
+        "$SCRIPT_PATH -s '$SOURCE_DIR' -d '$DEST_DIR' -j 2 -m 1K -v"
 }
 
 test_large_files_only() {
@@ -238,22 +250,22 @@ test_small_files_only() {
 
 test_sorted_by_size() {
     run_test "Sorted by Size" \
-        "$SCRIPT_PATH -s '$SOURCE_DIR' -d '$DEST_DIR' --sort-by-size -v"
+        "$SCRIPT_PATH -s '$SOURCE_DIR' -d '$DEST_DIR' --sort-by-size -m 1K -v"
 }
 
 test_specific_subdirectory() {
     run_test "Specific Subdirectory (large_files)" \
-        "$SCRIPT_PATH -s '$SOURCE_DIR/large_files' -d '$DEST_DIR/large_files' -v"
+        "$SCRIPT_PATH -s '$SOURCE_DIR/large_files' -d '$DEST_DIR/large_files' -m 1K -v"
 }
 
 test_with_excludes() {
     run_test "With Excludes (*.tmp, *.log)" \
-        "$SCRIPT_PATH -s '$SOURCE_DIR' -d '$DEST_DIR' --exclude '*.tmp' --exclude '*.log' -v"
+        "$SCRIPT_PATH -s '$SOURCE_DIR' -d '$DEST_DIR' --exclude '*.tmp' --exclude '*.log' -m 1K -v"
 }
 
 test_with_includes() {
     run_test "With Includes (*.bin only)" \
-        "$SCRIPT_PATH -s '$SOURCE_DIR' -d '$DEST_DIR' --include '*.bin' -v" \
+        "$SCRIPT_PATH -s '$SOURCE_DIR' -d '$DEST_DIR' --include '*.bin' -m 1K -v" \
         "partial_sync"
 }
 
@@ -266,24 +278,24 @@ test_resume_mode() {
     rsync -av "$SOURCE_DIR/small_files/" "$DEST_DIR/small_files/" >/dev/null 2>&1
 
     run_test "Resume Mode" \
-        "$SCRIPT_PATH -s '$SOURCE_DIR' -d '$DEST_DIR' --resume -v"
+        "$SCRIPT_PATH -s '$SOURCE_DIR' -d '$DEST_DIR' --resume -m 1K -v"
 }
 
 test_deep_directory() {
     run_test "Deep Directory Structure" \
-        "$SCRIPT_PATH -s '$SOURCE_DIR/deep' -d '$DEST_DIR/deep' --max-depth 20 -v"
+        "$SCRIPT_PATH -s '$SOURCE_DIR/deep' -d '$DEST_DIR/deep' --max-depth 20 -m 1K -v"
 }
 
 test_special_characters() {
     run_test "Files with Special Characters" \
-        "$SCRIPT_PATH -s '$SOURCE_DIR/special_chars' -d '$DEST_DIR/special_chars' -v"
+        "$SCRIPT_PATH -s '$SOURCE_DIR/special_chars' -d '$DEST_DIR/special_chars' -m 1K -v"
 }
 
 test_with_logging() {
     local test_log_dir
     test_log_dir="$LOG_DIR/test_run_$(date +%s)"
     run_test "With Individual Job Logging" \
-        "$SCRIPT_PATH -s '$SOURCE_DIR' -d '$DEST_DIR' --log-dir '$test_log_dir' -v"
+        "$SCRIPT_PATH -s '$SOURCE_DIR' -d '$DEST_DIR' --log-dir '$test_log_dir' -m 1K -v"
 
     # Verify log files were created
     if [ -d "$test_log_dir" ] && [ "$(find "$test_log_dir" -name "*.log" | wc -l)" -gt 0 ]; then

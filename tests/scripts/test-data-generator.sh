@@ -3,7 +3,16 @@
 # Test Data Generator for Parallel Rsync Testing
 # Generates various file sizes and structures for comprehensive testing
 
-DATA_DIR="/data/source"
+# Detect environment and set data directory accordingly
+if [ -d "/data" ]; then
+    # CI/Docker environment
+    DATA_DIR="/data/source"
+else
+    # Local development environment
+    SCRIPT_DIR="$(dirname "$(realpath "${BASH_SOURCE[0]}")")"
+    PROJECT_ROOT="$(dirname "$(dirname "$SCRIPT_DIR")")"
+    DATA_DIR="$PROJECT_ROOT/tests/data/source"
+fi
 VERBOSE=false
 FAST_MODE=false
 
