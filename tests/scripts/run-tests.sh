@@ -88,7 +88,7 @@ get_relative_path() {
         python -c "import os; print(os.path.relpath('$target', '$base'))" 2>/dev/null
     else
         # Fallback: simple string replacement
-        echo "${target#$base/}"
+        echo "${target#"$base"/}"
     fi
 }
 
