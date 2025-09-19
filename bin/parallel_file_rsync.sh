@@ -127,6 +127,18 @@ get_file_size() {
     fi
 }
 
+# Function to get file size and path in a cross-platform way
+# shellcheck disable=SC2329  # Keep for cross-platform compatibility and future use
+get_file_size_and_path() {
+    local filepath="$1"
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        # macOS
+        stat -f '%z:%N' "$filepath" 2>/dev/null
+    else
+        # Linux and others
+        stat -c '%s:%n' "$filepath" 2>/dev/null
+    fi
+}
 
 # Function to convert size to bytes
 size_to_bytes() {
