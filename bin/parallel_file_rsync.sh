@@ -115,6 +115,30 @@ log() {
     esac
 }
 
+# Function to get file size in a cross-platform way
+get_file_size() {
+    local filepath="$1"
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        # macOS
+        stat -f '%z' "$filepath" 2>/dev/null || echo 0
+    else
+        # Linux and others
+        stat -c '%s' "$filepath" 2>/dev/null || echo 0
+    fi
+}
+
+# Function to get file size and path in a cross-platform way
+get_file_size_and_path() {
+    local filepath="$1"
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        # macOS
+        stat -f '%z:%N' "$filepath" 2>/dev/null
+    else
+        # Linux and others
+        stat -c '%s:%n' "$filepath" 2>/dev/null
+    fi
+}
+
 # Function to convert size to bytes
 size_to_bytes() {
     local size=$1
@@ -184,10 +208,18 @@ get_file_list() {
             done
         fi
 
-        find "${find_args[@]}" -exec stat -c '%s:%n' {} \; 2>/dev/null > "$temp_file"
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+            find "${find_args[@]}" -exec stat -f '%z:%N' {} \; 2>/dev/null > "$temp_file"
+        else
+            find "${find_args[@]}" -exec stat -c '%s:%n' {} \; 2>/dev/null > "$temp_file"
+        fi
     else
         # Simple case - direct find command
-        find "$SOURCE_DIR" -maxdepth "$MAX_DEPTH" -type f -exec stat -c '%s:%n' {} \; 2>/dev/null > "$temp_file"
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+            find "$SOURCE_DIR" -maxdepth "$MAX_DEPTH" -type f -exec stat -f '%z:%N' {} \; 2>/dev/null > "$temp_file"
+        else
+            find "$SOURCE_DIR" -maxdepth "$MAX_DEPTH" -type f -exec stat -c '%s:%n' {} \; 2>/dev/null > "$temp_file"
+        fi
     fi
 
     # Process the results
@@ -407,7 +439,7 @@ process_files() {
         local large_with_sizes="$temp_dir/large_with_sizes.txt"
         while read -r filepath; do
             local size
-            size=$(stat -c '%s' "$filepath" 2>/dev/null || echo 0)
+            size=$(get_file_size "$filepath")
             echo "$size:$filepath"
         done < "$large_files" | sort -nr > "$large_with_sizes"
         cut -d: -f2 "$large_with_sizes" > "$large_files"
@@ -428,7 +460,7 @@ process_files() {
 
             job_count=$((job_count + 1))
             local filesize
-            filesize=$(stat -c '%s' "$filepath" 2>/dev/null || echo 0)
+            filesize=$(get_file_size "$filepath")
 
             # Start background job for large file
             sync_large_file "$filepath" "$job_count" "$filesize" &
