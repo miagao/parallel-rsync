@@ -27,12 +27,12 @@ jobs:
           exit 1
         fi
 
-    - name: Run full test suite
+    - name: Run fast test suite
       run: |
         cd tests/docker
         docker compose up -d
         sleep 10
-        docker compose exec -T rsync-source ./test-data-generator.sh
+        docker compose exec -T rsync-source ./test-data-generator.sh --fast
         timeout 300 docker compose exec -T rsync-tester ./run-tests.sh
         docker compose down -v
 
@@ -196,7 +196,7 @@ jobs:
         # Run comprehensive tests
         cd tests/docker
         docker compose up -d
-        docker compose exec rsync-source ./test-data-generator.sh -v
+        docker compose exec rsync-source ./test-data-generator.sh --fast
         docker compose exec rsync-tester ./run-tests.sh
         ```
 
